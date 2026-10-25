@@ -20,6 +20,9 @@ class ApiClient {
     if (sbUrl) headers['x-supabase-url'] = sbUrl;
     if (sbKey) headers['x-supabase-key'] = sbKey;
 
+    const geminiKey = localStorage.getItem('disasteros_gemini_api_key');
+    if (geminiKey) headers['x-gemini-key'] = geminiKey;
+
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
@@ -86,10 +89,21 @@ class ApiClient {
     });
   }
 
-  aiAssistant(question: string) {
-    return this.request<{ answer: string; sources: string[]; confidence: number }>('/ai/assistant', {
+  aiAssistant(question: string, options: { history?: Array<{ sender?: string; role?: string; text?: string; content?: string }>; context?: any; role?: 'citizen' | 'operator'; apiKey?: string } = {}) {
+    return this.request<{ answer: string; sources: string[]; confidence: number; model?: string; isGemini?: boolean; geminiError?: string }>('/ai/assistant', {
       method: 'POST',
-      body: JSON.stringify({ question })
+      body: JSON.stringify({ question, ...options })
+    });
+  }
+
+  getGeminiStatus() {
+    return this.request<{ configured: boolean; maskedKey: string | null; model: string; provider: string }>('/ai/gemini-status');
+  }
+
+  saveGeminiKey(apiKey: string) {
+    return this.request<{ success: boolean; message: string; model?: string; status?: any }>('/ai/gemini-config', {
+      method: 'POST',
+      body: JSON.stringify({ apiKey })
     });
   }
 
@@ -132,6 +146,9 @@ class ApiClient {
       body: JSON.stringify(updates)
     });
   }
+  updateTeamStatus(teamId: string, status: any) {
+    return this.updateRescueTeam(teamId, { status });
+  }
   
   // Missions
   getMissions() { return this.request<{ missions: Mission[] }>('/missions'); }
@@ -146,6 +163,9 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(updates)
     });
+  }
+  updateMissionStatus(missionId: string, status: any) {
+    return this.updateMission(missionId, { status });
   }
 
   // Facilities
@@ -169,16 +189,34 @@ class ApiClient {
   calculateRoute(startLat: number, startLng: number, destLat: number, destLng: number, vehicleType = 'ambulance') {
     return this.request<any>(`/routes/calculate?startLat=${startLat}&startLng=${startLng}&destLat=${destLat}&destLng=${destLng}&vehicleType=${vehicleType}`);
   }
+  calculateHazardRoute(params: { origin: [number, number]; destination: [number, number]; vehicle_type?: string }) {
+    return this.calculateRoute(params.origin[0], params.origin[1], params.destination[0], params.destination[1], params.vehicle_type || 'ambulance');
+  }
   getRoadHazards() { return this.request<{ road_hazards: RoadHazard[] }>('/road-conditions'); }
+  reportRoadHazard(data: any) {
+    return this.request<any>('/road-conditions', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
 
   // Volunteers & NGOs
   getNgos() { return this.request<{ ngos: any[] }>('/ngos'); }
   getVolunteers() { return this.request<{ volunteers: any[] }>('/volunteers'); }
+  registerVolunteer(data: any) {
+    return this.request<any>('/volunteers', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
   updateVolunteer(id: string, updates: any) {
     return this.request<{ volunteer: any }>(`/volunteers/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates)
     });
+  }
+  assignVolunteerTask(volunteerId: string, task: string | null) {
+    return this.updateVolunteer(volunteerId, { assigned_task: task });
   }
 
   // Alerts

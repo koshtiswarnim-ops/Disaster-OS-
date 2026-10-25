@@ -273,14 +273,67 @@ router.get('/ai/dynamic-reallocation', (req, res) => {
   res.json({ count: reallocations.length, recommendations: reallocations });
 });
 
+// Google Gemini Status & Runtime Configuration
+router.get('/ai/gemini-status', (req, res) => {
+  const headerKey = req.headers['x-gemini-key'];
+  if (headerKey && !aiService.geminiKey) {
+    return res.json({
+      configured: true,
+      maskedKey: headerKey.length > 10 ? `${headerKey.slice(0, 6)}...${headerKey.slice(-4)}` : 'Client Key',
+      model: 'gemini-2.0-flash',
+      provider: 'Google Gemini (Header Configured)'
+    });
+  }
+  res.json(aiService.getStatus());
+});
+
+router.post('/ai/gemini-config', async (req, res) => {
+  const { apiKey } = req.body;
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+    aiService.setApiKey(null);
+    return res.json({ success: true, message: "Gemini API key cleared. Operating in heuristic simulation mode.", configured: false });
+  }
+
+  try {
+    const testResult = await aiService.testApiKey(apiKey.trim());
+    aiService.setApiKey(apiKey.trim());
+    res.json({
+      success: true,
+      message: "Gemini API key successfully verified & active!",
+      model: testResult.model || 'gemini-2.0-flash',
+      status: aiService.getStatus()
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: `Gemini verification failed: ${err.message}. Please check that your Google AI Studio API key is active.`
+    });
+  }
+});
+
 router.post('/ai/assistant', async (req, res) => {
-  const { question } = req.body;
+  const { question, history, context, role, apiKey } = req.body;
   if (!question) return res.status(400).json({ error: "question required" });
-  const answer = await aiService.answerCommandCenterQuestion(question, {
+
+  const activeKey = apiKey || req.headers['x-gemini-key'];
+  
+  const fullContext = {
     incidents: store.incidents,
     teams: store.rescueTeams,
-    warehouses: store.warehouses
+    warehouses: store.warehouses,
+    shelters: store.shelters || [],
+    hospitals: store.hospitals || [],
+    hazards: store.roadHazards || [],
+    ...(context || {})
+  };
+
+  const answer = await aiService.answerQuestion(question, {
+    history: history || [],
+    context: fullContext,
+    role: role || 'citizen',
+    apiKey: activeKey
   });
+
   res.json(answer);
 });
 
