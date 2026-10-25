@@ -70,7 +70,7 @@ export const GeminiConfigModal: React.FC<GeminiConfigModalProps> = ({
     setIsTesting(true);
     setFeedback({
       type: 'info',
-      message: 'Connecting to Google Generative Language API (gemini-2.0-flash)...'
+      message: 'Discovering available models & connecting to Google Generative Language API...'
     });
 
     try {
@@ -78,20 +78,21 @@ export const GeminiConfigModal: React.FC<GeminiConfigModalProps> = ({
       localStorage.setItem('disasteros_gemini_api_key', apiKey.trim());
       
       const res = await api.saveGeminiKey(apiKey.trim());
+      const detectedModel = res.model || res.status?.model || 'Gemini Flash';
       setStatus(res.status || {
         configured: true,
         maskedKey: `${apiKey.trim().slice(0, 6)}...${apiKey.trim().slice(-4)}`,
-        model: res.model || 'gemini-2.0-flash',
+        model: detectedModel,
         provider: 'Google Gemini'
       });
 
       setFeedback({
         type: 'success',
-        message: `Verified successfully! Connected to Google ${res.model || 'gemini-2.0-flash'}.`
+        message: `Verified successfully! Connected to Google ${detectedModel}.`
       });
 
       if (onKeyUpdated) {
-        onKeyUpdated(true, res.model || 'gemini-2.0-flash');
+        onKeyUpdated(true, detectedModel);
       }
     } catch (err: any) {
       setFeedback({

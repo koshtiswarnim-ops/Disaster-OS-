@@ -8,10 +8,14 @@ export class AIService {
     this.geminiKey = process.env.GEMINI_API_KEY || null;
     this.openaiKey = process.env.OPENAI_API_KEY || null;
     this.anthropicKey = process.env.ANTHROPIC_API_KEY || null;
+    this.activeModel = null;
   }
 
   setApiKey(key) {
     this.geminiKey = key ? key.trim() : null;
+    if (!this.geminiKey) {
+      this.activeModel = null;
+    }
   }
 
   getStatus() {
@@ -19,18 +23,69 @@ export class AIService {
     return {
       configured: Boolean(key && key.trim().length > 0),
       maskedKey: key && key.length > 10 ? `${key.slice(0, 6)}...${key.slice(-4)}` : null,
-      model: 'gemini-2.0-flash',
+      model: this.activeModel || 'gemini-auto',
       provider: 'Google Gemini'
     };
   }
 
+  // Dynamically query Google's ModelService to find models available for this API key
+  async discoverAvailableModels(key) {
+    const defaultCandidates = [
+      'gemini-2.5-flash',
+      'gemini-2.0-flash-exp',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-pro',
+      'gemini-pro'
+    ];
+
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.models) && data.models.length > 0) {
+          const supported = data.models
+            .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+            .map(m => m.name.replace(/^models\//, ''));
+
+          if (supported.length > 0) {
+            console.log('[Gemini] Discovered models for key:', supported);
+            // Sort to prioritize flash models, then pro, then others
+            supported.sort((a, b) => {
+              const score = (name) => {
+                let s = 0;
+                if (name.includes('flash')) s += 10;
+                if (name.includes('2.5')) s += 5;
+                if (name.includes('2.0')) s += 4;
+                if (name.includes('1.5')) s += 3;
+                if (name.includes('pro')) s += 1;
+                return s;
+              };
+              return score(b) - score(a);
+            });
+            return supported;
+          }
+        }
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        console.warn('[Gemini] ListModels query response:', res.status, errJson.error?.message);
+      }
+    } catch (err) {
+      console.warn('[Gemini] ListModels discovery exception:', err.message);
+    }
+
+    return defaultCandidates;
+  }
+
   async testApiKey(key) {
     if (!key) throw new Error("API key is required");
-    return this.callGemini("State in one sentence that DisasterOS Gemini AI is connected and ready.", {
+    const testResult = await this.callGemini("State in one sentence that DisasterOS Gemini AI is connected and ready.", {
       apiKey: key,
       history: [],
       role: 'citizen'
     });
+    return testResult;
   }
 
   // 1. Prioritize Incident with Multi-Factor Explainable Scoring
@@ -215,13 +270,13 @@ GUIDELINES FOR YOUR RESPONSES:
 5. Be supportive, concise, and clear. Avoid filler phrases. Answer questions directly.`;
 
     // Format chat history for Gemini
-    const contents = [];
+    const rawContents = [];
     if (Array.isArray(history)) {
       for (const msg of history) {
         const text = (msg.text || msg.content || '').trim();
         if (!text) continue;
         const msgRole = (msg.sender === 'user' || msg.role === 'user') ? 'user' : 'model';
-        contents.push({
+        rawContents.push({
           role: msgRole,
           parts: [{ text }]
         });
@@ -229,53 +284,115 @@ GUIDELINES FOR YOUR RESPONSES:
     }
 
     // Add current user prompt
-    contents.push({
+    rawContents.push({
       role: 'user',
       parts: [{ text: prompt }]
     });
 
-    // Try gemini-2.0-flash, fallback to gemini-1.5-flash
-    const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    // Sanitize and alternate roles (Gemini requires strict alternating user/model)
+    const contents = [];
+    for (const item of rawContents) {
+      if (contents.length === 0) {
+        if (item.role === 'user') {
+          contents.push(item);
+        }
+      } else {
+        const prev = contents[contents.length - 1];
+        if (prev.role === item.role) {
+          prev.parts[0].text += `\n\n${item.parts[0].text}`;
+        } else {
+          contents.push(item);
+        }
+      }
+    }
+
+    if (contents.length === 0 || contents[contents.length - 1].role !== 'user') {
+      contents.push({ role: 'user', parts: [{ text: prompt }] });
+    }
+
+    // Discover models dynamically from Google's ModelService
+    const discovered = await this.discoverAvailableModels(key);
+    const modelsToTry = Array.from(new Set([
+      ...(this.activeModel ? [this.activeModel] : []),
+      ...discovered,
+      'gemini-2.5-flash',
+      'gemini-2.0-flash-exp',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-pro',
+      'gemini-pro'
+    ]));
+
     let lastError = null;
 
     for (const model of modelsToTry) {
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            system_instruction: {
-              parts: [{ text: systemPrompt }]
-            },
-            contents,
-            generationConfig: {
-              temperature: 0.35,
-              maxOutputTokens: 1024,
-              topP: 0.95
+      // Try with system_instruction, and fallback to prepending to contents if unsupported
+      for (const useSystemInstruction of [true, false]) {
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+          
+          let bodyPayload;
+          if (useSystemInstruction) {
+            bodyPayload = {
+              system_instruction: {
+                parts: [{ text: systemPrompt }]
+              },
+              contents,
+              generationConfig: {
+                temperature: 0.35,
+                maxOutputTokens: 1024,
+                topP: 0.95
+              }
+            };
+          } else {
+            const clonedContents = JSON.parse(JSON.stringify(contents));
+            if (clonedContents[0]?.parts?.[0]) {
+              clonedContents[0].parts[0].text = `[SYSTEM INSTRUCTION & EMERGENCY TELEMETRY]:\n${systemPrompt}\n\n[USER QUERY]:\n${clonedContents[0].parts[0].text}`;
             }
-          })
-        });
+            bodyPayload = {
+              contents: clonedContents,
+              generationConfig: {
+                temperature: 0.35,
+                maxOutputTokens: 1024,
+                topP: 0.95
+              }
+            };
+          }
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error?.message || `HTTP ${res.status} from Gemini API`);
-        }
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyPayload)
+          });
 
-        const data = await res.json();
-        const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (candidateText) {
-          return {
-            answer: candidateText,
-            sources: [`Google ${model}`, "DisasterOS Real-Time Telemetry"],
-            confidence: 0.99,
-            model: model,
-            isGemini: true
-          };
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData.error?.message || `HTTP ${res.status}`;
+            throw new Error(errMsg);
+          }
+
+          const data = await res.json();
+          const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (candidateText) {
+            this.activeModel = model;
+            console.log(`[Gemini] Successfully generated response with model: ${model}`);
+            return {
+              answer: candidateText,
+              sources: [`Google ${model}`, "DisasterOS Real-Time Telemetry"],
+              confidence: 0.99,
+              model: model,
+              isGemini: true
+            };
+          }
+        } catch (err) {
+          lastError = err;
+          console.warn(`[Gemini] Attempt with ${model} (sysInstruction=${useSystemInstruction}):`, err.message);
+          // If the model is not found, skip trying the second system instruction variant for this model
+          if (err.message.includes('not found') || err.message.includes('no longer available') || err.message.includes('404')) {
+            break;
+          }
         }
-      } catch (err) {
-        lastError = err;
-        console.warn(`[Gemini] Error with ${model}:`, err.message);
       }
     }
 

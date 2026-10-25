@@ -276,15 +276,16 @@ router.get('/ai/dynamic-reallocation', (req, res) => {
 // Google Gemini Status & Runtime Configuration
 router.get('/ai/gemini-status', (req, res) => {
   const headerKey = req.headers['x-gemini-key'];
+  const status = aiService.getStatus();
   if (headerKey && !aiService.geminiKey) {
     return res.json({
       configured: true,
       maskedKey: headerKey.length > 10 ? `${headerKey.slice(0, 6)}...${headerKey.slice(-4)}` : 'Client Key',
-      model: 'gemini-2.0-flash',
+      model: status.model,
       provider: 'Google Gemini (Header Configured)'
     });
   }
-  res.json(aiService.getStatus());
+  res.json(status);
 });
 
 router.post('/ai/gemini-config', async (req, res) => {
@@ -299,11 +300,12 @@ router.post('/ai/gemini-config', async (req, res) => {
     aiService.setApiKey(apiKey.trim());
     res.json({
       success: true,
-      message: "Gemini API key successfully verified & active!",
-      model: testResult.model || 'gemini-2.0-flash',
+      message: `Gemini API key successfully verified using ${testResult.model}!`,
+      model: testResult.model,
       status: aiService.getStatus()
     });
   } catch (err) {
+    console.error('[Gemini Verification Error]:', err.message);
     res.status(400).json({
       success: false,
       error: `Gemini verification failed: ${err.message}. Please check that your Google AI Studio API key is active.`
