@@ -1,384 +1,510 @@
-import React, { useState } from 'react';
+// DisasterOS Intelligent Role-Aware Navbar with Streamlined Architecture & Dropdowns
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  ShieldAlert, 
-  ChevronDown, 
-  Check, 
-  Menu, 
-  X,
-  Sparkles,
-  Settings,
-  Flame,
-  Radio,
-  User,
-  ExternalLink,
-  Copy
-} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useDisaster } from '../../context/DisasterContext';
-import { UserRole } from '../../types';
+import { 
+  Radio, 
+  Menu, 
+  X, 
+  Users, 
+  LogOut, 
+  ChevronDown,
+  Layers,
+  Shield,
+  Truck,
+  HeartPulse,
+  Boxes,
+  Home,
+  Activity,
+  Compass,
+  Navigation,
+  Sliders,
+  ClipboardList
+} from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, setRole, availableRoles } = useAuth();
-  const { isConnected } = useDisaster();
-
+  const { user, isAuthenticated, isCitizen, isOperator, logout, quickDemoLogin } = useAuth();
+  
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [pitchModalOpen, setPitchModalOpen] = useState(false);
-  const [copiedPitch, setCopiedPitch] = useState(false);
-  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [opsDropdownOpen, setOpsDropdownOpen] = useState(false);
+  const [intelDropdownOpen, setIntelDropdownOpen] = useState(false);
+
+  const opsDropdownRef = useRef<HTMLDivElement>(null);
+  const intelDropdownRef = useRef<HTMLDivElement>(null);
 
   const currentPath = location.pathname;
 
-  // Role-specific navigation links: Citizen vs Operator
-  const citizenNavLinks = [
-    { path: '/sos', label: '🚨 Emergency SOS' },
-    { path: '/map', label: '🗺️ Safe Shelters & Map' },
-    { path: '/alerts', label: '📢 Public Advisories' },
-    { path: '/ai-assistant', label: '💬 Safety Assistant' },
+  // Close dropdowns on route change or click outside
+  useEffect(() => {
+    setOpsDropdownOpen(false);
+    setIntelDropdownOpen(false);
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (opsDropdownRef.current && !opsDropdownRef.current.contains(event.target as Node)) {
+        setOpsDropdownOpen(false);
+      }
+      if (intelDropdownRef.current && !intelDropdownRef.current.contains(event.target as Node)) {
+        setIntelDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Dropdown Items for Operator
+  const operationItems = [
+    { path: '/operator/allocation', label: 'Resource Engine', desc: 'AI multi-factor triage allocation', icon: Layers },
+    { path: '/operator/reallocation', label: 'Dynamic Reallocation', desc: 'Cross-depot deficit balancing', icon: Navigation },
+    { path: '/operator/teams', label: 'Rescue Teams', desc: 'USAR & swiftwater squads', icon: Shield },
+    { path: '/operator/fleet', label: 'Emergency Fleet', desc: 'Ambulances & high-water trucks', icon: Truck },
+    { path: '/operator/hospitals', label: 'Hospitals & Trauma', desc: 'Live ICU & bed network', icon: HeartPulse },
+    { path: '/operator/shelters', label: 'Shelters', desc: 'Safe evacuation sanctuaries', icon: Home },
+    { path: '/operator/warehouses', label: 'Warehouses & Stock', desc: 'Trauma kits, water & rations', icon: Boxes },
   ];
 
-  const operatorNavLinks = [
-    { path: '/command-center', label: 'Command Center' },
-    { path: '/incidents', label: '🚨 SOS Triage Queue' },
-    { path: '/map', label: 'Tactical Map' },
-    { path: '/resources', label: 'Fleet & Hospitals' },
-    { path: '/alerts', label: 'Broadcast Sirens' },
-    { path: '/settings', label: 'Database' },
+  const intelligenceItems = [
+    { path: '/operator/analytics', label: 'Operations Analytics', desc: 'Casualty & response KPIs', icon: Activity },
+    { path: '/operator/risk', label: 'Risk & Early Warnings', desc: 'Continuous multi-hazard stream', icon: Compass },
+    { path: '/operator/routes', label: 'Hazard-Free Routes', desc: 'Obstruction avoidance corridors', icon: Navigation },
+    { path: '/operator/alerts', label: 'Broadcast Alerts', desc: 'Emergency sirens & push bulletins', icon: Radio },
+    { path: '/operator/simulation', label: 'Twin Simulation', desc: 'Atmospheric flood stress-test', icon: Sliders },
+    { path: '/operator/audit', label: 'Audit Logs', desc: 'Immutable operational ledger', icon: ClipboardList },
   ];
 
-  const isCitizen = user.role === 'citizen';
-  const activeNavLinks = isCitizen ? citizenNavLinks : operatorNavLinks;
-
-  const handleRoleToggle = (newRole: UserRole) => {
-    setRole(newRole);
-    setRoleDropdownOpen(false);
-    if (newRole === 'citizen') {
-      navigate('/sos');
-    } else {
-      navigate('/command-center');
-    }
-  };
-
-  const copyPitchScript = () => {
-    const script = `AI DISASTER ASSISTANT — 60-SECOND HACKATHON PITCH:
-1. PROBLEM: During disasters (floods, earthquakes, fires, storms), people lack timely and location-specific information. They don't know if their street is safe or where to go.
-2. SOLUTION: DisasterOS is an AI Disaster Assistant that analyzes real-time sensor streams, issues predictive early warnings, pinpoints high-risk danger zones, and coordinates faster emergency rescue.
-3. 4 PILLARS IN ACTION:
-   - Analyze Data: Sub-second multi-sensor ingestion (USGS seismic, NOAA radar, IoT river gauges).
-   - Early Warnings: Gives countdowns to danger (e.g. "Flood peak in 38 mins in Zone A").
-   - High-Risk Areas: Visualizes danger zones & safe evacuation corridors.
-   - Faster Response: Citizen 1-tap SOS + automated rescue team & hospital allocation.
-4. IMPACT: Reduces emergency response coordination from 45 minutes to under 4 minutes.`;
-    navigator.clipboard.writeText(script);
-    setCopiedPitch(true);
-    setTimeout(() => setCopiedPitch(false), 2000);
-  };
+  const isOpsActive = operationItems.some(i => currentPath.startsWith(i.path));
+  const isIntelActive = intelligenceItems.some(i => currentPath.startsWith(i.path));
 
   return (
-    <div className="sticky top-0 z-40 w-full flex flex-col shadow-xs">
-      <header className="h-14 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-full flex items-center justify-between gap-3">
+    <header className="fixed inset-x-0 top-0 z-50 bg-[#05070d]/95 backdrop-blur-xl border-b border-white/[0.08] shadow-2xl">
+      <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 sm:h-20 items-center justify-between gap-4">
           
-          {/* Left: Brand with Role Badge */}
-          <div className="flex items-center gap-5 shrink-0">
-            <Link to="/" className="flex items-center gap-2 group shrink-0">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-xs transition-transform group-hover:scale-105 duration-200 ${
-                isCitizen ? 'bg-emerald-600' : 'bg-slate-900'
-              }`}>
-                <ShieldAlert className="w-4 h-4" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-sm tracking-tight text-slate-900 font-sans">
-                  DisasterOS
+          {/* 1. Left: DisasterOS Logo */}
+          <Link 
+            to={isCitizen ? '/citizen/dashboard' : isOperator ? '/operator/dashboard' : '/'} 
+            className="group flex items-center transition-transform duration-300 hover:scale-[1.02] shrink-0" 
+            aria-label="DisasterOS home"
+          >
+            <span className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true" className="shrink-0 overflow-visible">
+                <defs>
+                  <linearGradient id="logoStroke-nav" x1="5" y1="4" x2="27" y2="28" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#5cc2ff" />
+                    <stop offset="0.6" stopColor="#38bdf8" />
+                    <stop offset="1" stopColor="#2563eb" />
+                  </linearGradient>
+                </defs>
+                <circle cx="16" cy="16" r="12.6" stroke="url(#logoStroke-nav)" strokeWidth="1.7" />
+                <ellipse cx="16" cy="16" rx="6.6" ry="12.6" stroke="url(#logoStroke-nav)" strokeWidth="1.5" />
+                <path d="M16 3.4 V28.6" stroke="url(#logoStroke-nav)" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M3.4 16 H28.6" stroke="url(#logoStroke-nav)" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="21" cy="11" r="2.2" fill="#fb923c" />
+              </svg>
+              <span className="text-lg sm:text-xl font-bold tracking-tight text-white font-sans flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                Disaster<span className="text-[#38bdf8]">OS</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#38bdf8]/20 text-[#38bdf8] border border-[#38bdf8]/40 shrink-0">
+                  AI
                 </span>
-                {isCitizen ? (
-                  <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                    CITIZEN PORTAL
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    OPERATOR CONSOLE
-                  </span>
-                )}
-              </div>
-            </Link>
+              </span>
+            </span>
+          </Link>
 
-            {/* Desktop Dynamic Nav Links */}
-            <nav className="hidden lg:flex items-center gap-1">
-              {activeNavLinks.map((item) => {
-                const isActive = currentPath === item.path;
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
-                      isActive
-                        ? isCitizen
-                          ? 'bg-emerald-700 text-white font-semibold shadow-xs'
-                          : 'bg-slate-900 text-white font-semibold shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          {/* 2. Center: Streamlined Desktop Navigation */}
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-2 shrink-0">
+            
+            {/* PUBLIC NAVIGATION (Logged out) */}
+            {!isAuthenticated && (
+              <>
+                <Link
+                  to="/"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath === '/' ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Overview
+                </Link>
+                <Link
+                  to="/citizen/map"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath.startsWith('/citizen/map') ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Public Map
+                </Link>
+                <Link
+                  to="/citizen/alerts"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath.startsWith('/citizen/alerts') ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Alerts
+                </Link>
+                <Link
+                  to="/operator/shelters"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath.startsWith('/operator/shelters') ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Shelters
+                </Link>
+                <Link
+                  to="/operator/analytics"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath.startsWith('/operator/analytics') ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Analytics
+                </Link>
+              </>
+            )}
+
+            {/* CITIZEN NAVIGATION */}
+            {isCitizen && (
+              <>
+                <Link
+                  to="/citizen/dashboard"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath === '/citizen/dashboard' ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Citizen Home
+                </Link>
+                <Link
+                  to="/citizen/sos"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                    currentPath === '/citizen/sos' ? 'text-rose-400 font-bold bg-rose-500/10' : 'text-rose-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                  <span>Report SOS</span>
+                </Link>
+                <Link
+                  to="/citizen/track"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath.startsWith('/citizen/track') ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Track SOS
+                </Link>
+                <Link
+                  to="/citizen/map"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath === '/citizen/map' ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Safe Map
+                </Link>
+                <Link
+                  to="/citizen/alerts"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath === '/citizen/alerts' ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Public Alerts
+                </Link>
+                <Link
+                  to="/citizen/assistant"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath === '/citizen/assistant' ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  AI Assistant
+                </Link>
+              </>
+            )}
+
+            {/* OPERATOR EOC NAVIGATION: CLEAN, STREAMLINED & GROUPED */}
+            {isOperator && (
+              <>
+                {/* 1. Command Center */}
+                <Link
+                  to="/operator/dashboard"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath === '/operator/dashboard' ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Command Center
+                </Link>
+
+                {/* 2. Incidents Queue */}
+                <Link
+                  to="/operator/incidents"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath === '/operator/incidents' ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Incidents Queue
+                </Link>
+
+                {/* 3. Tactical GIS Map */}
+                <Link
+                  to="/operator/map"
+                  className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+                    currentPath === '/operator/map' ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Tactical GIS
+                </Link>
+
+                {/* 4. Operations & Resources Dropdown */}
+                <div className="relative" ref={opsDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpsDropdownOpen(!opsDropdownOpen);
+                      setIntelDropdownOpen(false);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors flex items-center gap-1 cursor-pointer ${
+                      isOpsActive || opsDropdownOpen ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+                    <span>Operations</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${opsDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
 
-          {/* Right Action Items */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            
-            {/* Highly-Visible 2-Way Role Switcher Pill */}
-            <div className="flex items-center p-0.5 rounded-lg border border-slate-300 bg-slate-100 text-xs font-semibold shadow-2xs">
-              <button
-                onClick={() => handleRoleToggle('citizen')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all ${
-                  isCitizen 
-                    ? 'bg-emerald-600 text-white shadow-xs' 
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="Switch to Citizen Public Portal"
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>Citizen</span>
-              </button>
-              <button
-                onClick={() => handleRoleToggle('authority')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all ${
-                  !isCitizen 
-                    ? 'bg-slate-900 text-amber-300 shadow-xs' 
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="Switch to Authority Operator Console"
-              >
-                <Radio className="w-3.5 h-3.5" />
-                <span>Operator</span>
-              </button>
-            </div>
+                  {/* Dropdown Menu */}
+                  {opsDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-[#0D162B] border border-white/15 rounded-2xl p-2 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in slide-in-from-top-2">
+                      <div className="text-[10px] font-mono uppercase tracking-wider text-white/40 px-3 py-1.5 font-bold">
+                        Field Resources & Deployment
+                      </div>
+                      <div className="space-y-0.5">
+                        {operationItems.map((item) => {
+                          const ItemIcon = item.icon;
+                          const active = currentPath.startsWith(item.path);
+                          return (
+                            <Link
+                              key={item.path}
+                              to={item.path}
+                              onClick={() => setOpsDropdownOpen(false)}
+                              className={`flex items-start gap-2.5 p-2 rounded-xl transition-colors ${
+                                active ? 'bg-[#38bdf8]/15 text-[#38bdf8]' : 'text-white/80 hover:text-white hover:bg-white/5'
+                              }`}
+                            >
+                              <ItemIcon className="w-4 h-4 mt-0.5 text-[#38bdf8] shrink-0" />
+                              <div>
+                                <div className="text-xs font-bold leading-tight">{item.label}</div>
+                                <div className="text-[10.5px] text-white/50 leading-tight mt-0.5">{item.desc}</div>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-            {/* Prominent Citizen SOS Shortcut (Quick Trigger) */}
-            {isCitizen && (
-              <Link
-                to="/sos"
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold shadow-xs transition-transform active:scale-95 ${
-                  currentPath === '/sos'
-                    ? 'bg-rose-600 text-white ring-2 ring-rose-400/50'
-                    : 'bg-rose-600 text-white hover:bg-rose-700'
-                }`}
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-200 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                </span>
-                <span>Send SOS</span>
-              </Link>
+                {/* 5. Intelligence & Telemetry Dropdown */}
+                <div className="relative" ref={intelDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIntelDropdownOpen(!intelDropdownOpen);
+                      setOpsDropdownOpen(false);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors flex items-center gap-1 cursor-pointer ${
+                      isIntelActive || intelDropdownOpen ? 'text-[#38bdf8] font-bold bg-white/5' : 'text-white/70 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>Intelligence</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${intelDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {intelDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-[#0D162B] border border-white/15 rounded-2xl p-2 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in slide-in-from-top-2">
+                      <div className="text-[10px] font-mono uppercase tracking-wider text-white/40 px-3 py-1.5 font-bold">
+                        Analysis & Coordination
+                      </div>
+                      <div className="space-y-0.5">
+                        {intelligenceItems.map((item) => {
+                          const ItemIcon = item.icon;
+                          const active = currentPath.startsWith(item.path);
+                          return (
+                            <Link
+                              key={item.path}
+                              to={item.path}
+                              onClick={() => setIntelDropdownOpen(false)}
+                              className={`flex items-start gap-2.5 p-2 rounded-xl transition-colors ${
+                                active ? 'bg-[#38bdf8]/15 text-[#38bdf8]' : 'text-white/80 hover:text-white hover:bg-white/5'
+                              }`}
+                            >
+                              <ItemIcon className="w-4 h-4 mt-0.5 text-[#55D6A7] shrink-0" />
+                              <div>
+                                <div className="text-xs font-bold leading-tight">{item.label}</div>
+                                <div className="text-[10.5px] text-white/50 leading-tight mt-0.5">{item.desc}</div>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
-            {/* Quick Pitch Guide Modal */}
-            <button
-              onClick={() => setPitchModalOpen(true)}
-              className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition-colors shadow-2xs"
-              title="60-Second Hackathon Winning Pitch Guide"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              <span>Pitch (60s)</span>
-            </button>
+          </nav>
 
-            {/* Settings Shortcut */}
-            <Link
-              to="/settings"
-              className="w-8 h-8 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors"
-              title="System & Supabase Database Settings"
-            >
-              <Settings className="w-4 h-4" />
-            </Link>
+          {/* 3. Right: Evaluator Switcher, Profile & Actions */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            
+            {/* Unauthenticated: Sign In CTA */}
+            {!isAuthenticated ? (
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/citizen/sos"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FF5D67] text-white text-xs font-bold shadow-md hover:bg-[#ff434e] transition-all"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                  <span>Report SOS</span>
+                </Link>
+                <Link
+                  to="/login"
+                  className="btn-primary text-xs py-1.5 sm:py-2 px-3 sm:px-4 font-semibold shrink-0"
+                >
+                  <span>Portal Sign In</span>
+                </Link>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                
+                {/* Evaluator Quick Role Switcher Pill (Optimized layout) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isCitizen) {
+                      quickDemoLogin('operator');
+                      navigate('/operator/dashboard');
+                    } else {
+                      quickDemoLogin('citizen');
+                      navigate('/citizen/dashboard');
+                    }
+                  }}
+                  title={isCitizen ? 'Switch to Operator EOC Demo' : 'Switch to Citizen Civilian Demo'}
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[11px] font-mono font-semibold bg-white/[0.06] hover:bg-white/15 border border-white/15 text-white/90 hover:text-white transition-all cursor-pointer shrink-0"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-pulse" />
+                  <span>{isCitizen ? 'To EOC 🛡️' : 'To Citizen 👤'}</span>
+                </button>
 
-            {/* Mobile Menu Hamburger */}
+                {/* Active User Badge (Clean width, never overflows) */}
+                <Link
+                  to={isCitizen ? '/citizen/profile' : '/operator/settings'}
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold bg-[#0D162B] border border-white/15 hover:border-[#38bdf8]/50 text-white shrink-0 transition-colors"
+                  title={`Logged in as ${user?.fullName || 'User'} (${user?.role})`}
+                >
+                  {isCitizen ? (
+                    <Users className="w-3.5 h-3.5 text-[#38bdf8] shrink-0" />
+                  ) : (
+                    <Radio className="w-3.5 h-3.5 text-[#55D6A7] shrink-0" />
+                  )}
+                  <span className="max-w-[100px] sm:max-w-[130px] truncate">{user?.fullName || 'User'}</span>
+                  <span className="text-[10px] font-mono text-white/50 uppercase">
+                    [{isCitizen ? 'Citizen' : 'EOC'}]
+                  </span>
+                </Link>
+
+                {/* Sign Out Button */}
+                <button
+                  onClick={() => {
+                    logout();
+                    navigate('/login');
+                  }}
+                  className="p-1.5 sm:p-2 rounded-full text-white/50 hover:text-[#FF5D67] hover:bg-white/5 transition-colors shrink-0 cursor-pointer"
+                  title="Sign out of DisasterOS"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Mobile menu toggle button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50"
+              className="p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/5 lg:hidden shrink-0 cursor-pointer"
+              aria-label="Toggle navigation menu"
             >
-              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
-        </div>
-      </header>
 
-      {/* Global Role Mode Ribbon - Instantly distinguishes Citizen vs Operator UI */}
-      <div className={`w-full text-xs border-b px-4 py-1.5 transition-colors ${
-        isCitizen 
-          ? 'bg-emerald-50 border-emerald-200 text-emerald-950' 
-          : 'bg-slate-900 border-slate-800 text-slate-100'
-      }`}>
-        <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 truncate">
-            {isCitizen ? (
-              <>
-                <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-emerald-600 text-white shadow-2xs">
-                  CITIZEN
-                </span>
-                <span className="font-bold text-emerald-900 text-xs">
-                  Public Safety Portal
-                </span>
-                <span className="hidden md:inline text-emerald-700 text-xs">
-                  — 1-Tap SOS Distress, Live Rescue ETA, Open Shelters & Evacuation Safe Routes
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-amber-400 text-slate-950 font-bold shadow-2xs">
-                  OPERATOR
-                </span>
-                <span className="font-bold text-amber-300 text-xs">
-                  Command & Dispatch Console (Authority)
-                </span>
-                <span className="hidden md:inline text-slate-300 text-xs">
-                  — Live Triage Queue, Swiftwater & USAR Dispatch, Hospital ICU Balancing
-                </span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => handleRoleToggle(isCitizen ? 'authority' : 'citizen')}
-              className={`px-2.5 py-0.5 rounded text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 ${
-                isCitizen
-                  ? 'bg-slate-900 hover:bg-slate-800 text-white border border-slate-700'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-              }`}
-            >
-              <span>Switch to {isCitizen ? 'Operator Console 🛡️' : 'Citizen Portal 👤'}</span>
-            </button>
-            </div>
-          </div>
         </div>
+      </div>
 
-        {/* Mobile Dropdown Drawer */}
+      {/* 4. Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-white border-b border-slate-200 px-4 py-3 space-y-1.5 shadow-lg">
-          {activeNavLinks.map((item) => {
-            const isActive = currentPath === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`block px-3 py-2 rounded-lg text-xs font-medium ${
-                  isActive 
-                    ? isCitizen ? 'bg-emerald-700 text-white font-bold' : 'bg-slate-900 text-white font-bold'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-          {isCitizen && (
-            <Link
-              to="/sos"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block px-3 py-2 rounded-lg text-xs font-bold bg-rose-600 text-white text-center"
-            >
-              🚨 Send Emergency SOS
-            </Link>
+        <div className="lg:hidden bg-[#05070d]/98 border-b border-white/10 px-4 pt-3 pb-6 space-y-4 max-h-[85vh] overflow-y-auto">
+          
+          {/* Unauthenticated Mobile Links */}
+          {!isAuthenticated && (
+            <div className="flex flex-col space-y-1">
+              <Link to="/" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Overview</Link>
+              <Link to="/citizen/map" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Public Map</Link>
+              <Link to="/citizen/alerts" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Public Alerts</Link>
+              <Link to="/operator/shelters" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Shelters</Link>
+              <Link to="/operator/analytics" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Analytics</Link>
+              <div className="pt-2 flex flex-col gap-2">
+                <Link to="/citizen/sos" className="p-2.5 rounded-xl bg-rose-600 text-white font-bold text-center text-xs">Report SOS</Link>
+                <Link to="/login" className="btn-primary text-center text-xs py-2">Portal Sign In</Link>
+              </div>
+            </div>
           )}
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500">Current Role:</span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => { handleRoleToggle('citizen'); setMobileMenuOpen(false); }}
-                className={`px-2.5 py-1 rounded text-xs font-medium ${isCitizen ? 'bg-slate-900 text-white font-bold' : 'bg-slate-100 text-slate-700'}`}
-              >
-                Citizen
-              </button>
-              <button
-                onClick={() => { handleRoleToggle('authority'); setMobileMenuOpen(false); }}
-                className={`px-2.5 py-1 rounded text-xs font-medium ${!isCitizen ? 'bg-slate-900 text-white font-bold' : 'bg-slate-100 text-slate-700'}`}
-              >
-                Operator
-              </button>
+
+          {/* Citizen Mobile Links */}
+          {isCitizen && (
+            <div className="flex flex-col space-y-1">
+              <div className="text-[10px] font-mono uppercase text-[#38bdf8] font-bold px-2 mb-1">Citizen Portal</div>
+              <Link to="/citizen/dashboard" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Citizen Home</Link>
+              <Link to="/citizen/sos" className="p-2 rounded text-sm text-rose-400 font-bold hover:bg-white/5">🚨 Report SOS</Link>
+              <Link to="/citizen/track" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Track My SOS</Link>
+              <Link to="/citizen/map" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Safe Map</Link>
+              <Link to="/citizen/alerts" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Public Alerts</Link>
+              <Link to="/citizen/assistant" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">AI Assistant</Link>
+              <Link to="/citizen/profile" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Profile & Settings</Link>
             </div>
-          </div>
+          )}
+
+          {/* Operator Mobile Links */}
+          {isOperator && (
+            <div className="flex flex-col space-y-3">
+              <div className="flex flex-col space-y-1">
+                <div className="text-[10px] font-mono uppercase text-[#38bdf8] font-bold px-2">EOC Command</div>
+                <Link to="/operator/dashboard" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Command Center</Link>
+                <Link to="/operator/incidents" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Incidents Queue</Link>
+                <Link to="/operator/map" className="p-2 rounded text-sm text-white/80 hover:bg-white/5">Tactical GIS Map</Link>
+              </div>
+
+              <div className="flex flex-col space-y-1 pt-2 border-t border-white/5">
+                <div className="text-[10px] font-mono uppercase text-[#38bdf8] font-bold px-2">Operations & Resources</div>
+                {operationItems.map(item => (
+                  <Link key={item.path} to={item.path} className="p-2 rounded text-xs text-white/80 hover:bg-white/5 flex items-center gap-2">
+                    <item.icon className="w-3.5 h-3.5 text-[#38bdf8]" />
+                    <span>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+
+              <div className="flex flex-col space-y-1 pt-2 border-t border-white/5">
+                <div className="text-[10px] font-mono uppercase text-[#55D6A7] font-bold px-2">Intelligence & Audit</div>
+                {intelligenceItems.map(item => (
+                  <Link key={item.path} to={item.path} className="p-2 rounded text-xs text-white/80 hover:bg-white/5 flex items-center gap-2">
+                    <item.icon className="w-3.5 h-3.5 text-[#55D6A7]" />
+                    <span>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
       )}
-
-      {/* 60-Second Hackathon Pitch Guide Modal */}
-      {pitchModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-xl w-full p-6 space-y-4 animate-in fade-in">
-            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
-              <div>
-                <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded uppercase">
-                  Hackathon Pitch Guide
-                </span>
-                <h3 className="text-base font-bold text-slate-900 mt-1">
-                  How to Explain & Win in 60 Seconds
-                </h3>
-              </div>
-              <button
-                onClick={() => setPitchModalOpen(false)}
-                className="w-7 h-7 rounded border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-500"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-slate-700">
-              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
-                <strong className="text-slate-900 block font-mono text-[11px] uppercase">1. State the Problem (10 sec):</strong>
-                <p>
-                  "In disasters like floods, earthquakes, fires, and extreme weather, people lack timely and location-specific information. They don't know if their neighborhood is safe or where to go."
-                </p>
-              </div>
-
-              <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200 space-y-1">
-                <strong className="text-blue-900 block font-mono text-[11px] uppercase">2. Introduce the Solution (15 sec):</strong>
-                <p>
-                  "Our <strong>AI Disaster Assistant</strong> eliminates this gap. It analyzes multi-source data, issues early warnings before impact, identifies high-risk danger zones, and powers faster emergency response."
-                </p>
-              </div>
-
-              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
-                <strong className="text-slate-900 block font-mono text-[11px] uppercase">3. Live Demo the 4 Pillars (25 sec):</strong>
-                <ul className="space-y-1 list-disc pl-4 text-[11.5px]">
-                  <li><strong>Analyze Data:</strong> Multi-sensor streams (water depth, seismic, weather radar).</li>
-                  <li><strong>Early Warnings:</strong> Gives predictive countdowns (e.g. <em>"Flood crest in 38 mins in Zone A"</em>).</li>
-                  <li><strong>High-Risk Areas:</strong> Visualizes danger zones & safe evacuation corridors.</li>
-                  <li><strong>Faster Response:</strong> Citizen 1-tap SOS + automated rescue team & shelter allocation.</li>
-                </ul>
-              </div>
-
-              <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200 space-y-1">
-                <strong className="text-emerald-900 block font-mono text-[11px] uppercase">4. The Winning Closer (10 sec):</strong>
-                <p>
-                  "We reduced emergency response coordination time from 45 minutes down to <strong>under 4 minutes</strong>. That is the difference between life and death."
-                </p>
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <button
-                onClick={copyPitchScript}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center gap-1.5 transition-colors"
-              >
-                <Copy className="w-3 h-3" />
-                <span>{copiedPitch ? 'Copied to Clipboard!' : 'Copy Pitch Script'}</span>
-              </button>
-              <button
-                onClick={() => setPitchModalOpen(false)}
-                className="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
-              >
-                Got It
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </header>
   );
 };
